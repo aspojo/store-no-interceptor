@@ -1,5 +1,6 @@
 package com.rtmart.sni;
 
+import cn.hutool.core.util.StrUtil;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.cache.CacheKey;
@@ -23,11 +24,13 @@ import org.apache.shardingsphere.sql.parser.sql.statement.SQLStatement;
 import org.apache.shardingsphere.sql.parser.sql.statement.dml.DMLStatement;
 import org.apache.shardingsphere.sql.parser.sql.statement.dml.DeleteStatement;
 import org.apache.shardingsphere.sql.parser.sql.statement.dml.UpdateStatement;
+import org.apache.shardingsphere.underlying.common.rule.DataNode;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -48,15 +51,16 @@ import java.util.Optional;
 )
 @NoArgsConstructor
 public class StoreNoInterceptor implements Interceptor {
-    DataSource dataSource;
-
+    ShardingDataSource dataSource;
     String storeNoFieldName;
     String excludeTables;
+    String tableNames;
 
-    public StoreNoInterceptor(DataSource dataSource, String storeNoFieldName, String excludeTables) {
-        this.dataSource = dataSource;
+    public StoreNoInterceptor(DataSource dataSource, String storeNoFieldName, String excludeTables, String tableNames) {
+        this.dataSource = (ShardingDataSource) dataSource;
         this.storeNoFieldName = storeNoFieldName;
         this.excludeTables = excludeTables;
+        this.tableNames = tableNames;
     }
 
     @Override
@@ -69,9 +73,7 @@ public class StoreNoInterceptor implements Interceptor {
             boolean isUpdate = args.length == 2;
             if (isUpdate) {
                 String sql = ms.getBoundSql(parameter).getSql();
-                SQLStatement parse = ((ShardingDataSource) dataSource).getRuntimeContext().getSqlParserEngine().parse(sql, true);
-
-
+                SQLStatement parse = dataSource.getRuntimeContext().getSqlParserEngine().parse(sql, true);
                 if (parse instanceof DMLStatement) {
                     DMLStatement dmlStatement = (DMLStatement) parse;
                     Collection<SimpleTableSegment> tables = null;
@@ -80,20 +82,19 @@ public class StoreNoInterceptor implements Interceptor {
                         UpdateStatement statement = (UpdateStatement) dmlStatement;
                         tables = statement.getTables();
                         where = statement.getWhere();
-
                     } else if (dmlStatement instanceof DeleteStatement) {
                         DeleteStatement statement = (DeleteStatement) dmlStatement;
                         tables = statement.getTables();
                         where = statement.getWhere();
-
                     }
                     if (tables != null) {
                         for (SimpleTableSegment table : tables) {
                             String tableName = table.getTableName().getIdentifier().getValue();
-                            boolean excluded = Arrays.stream(excludeTables.split(",")).anyMatch(item -> item.equalsIgnoreCase(tableName));
-                            if (!excluded && !existsStoreNO(where)) {
-                                log.error("请修改sql，不允许不带店号({})的DML语句执行！！！ --> {}", storeNoFieldName, sql);
-                                return -1;
+                            if (shouldDoInterceptor(tableName)) {
+                                if (!where.isPresent() || !existsStoreNO(where.get())) {
+                                    log.error("请修改sql，不允许不带店号({})的DML语句执行！！！ --> {}", storeNoFieldName, sql);
+                                    return -1;
+                                }
                             }
                         }
                     }
@@ -104,20 +105,27 @@ public class StoreNoInterceptor implements Interceptor {
         return invocation.proceed();
     }
 
-    private boolean existsStoreNO(Optional<WhereSegment> whereSegment) {
-        if (whereSegment.isPresent()) {
-            WhereSegment whereSegment1 = whereSegment.get();
-            for (AndPredicate andPredicate : whereSegment.get().getAndPredicates()) {
-                for (PredicateSegment predicate : andPredicate.getPredicates()) {
-                    if (storeNoFieldName.equalsIgnoreCase(predicate.getColumn().getIdentifier().getValue())) {
-                        if (predicate.getRightValue() instanceof PredicateCompareRightValue) {
-                            String operator = ((PredicateCompareRightValue) predicate.getRightValue()).getOperator();
-                            if ("=".equals(operator)) {
-                                return true;
-                            }
+    private boolean shouldDoInterceptor(String tableName) {
+        List<DataNode> actualDataNodes = dataSource.getRuntimeContext().getRule().getTableRule(tableName).getActualDataNodes();
+        boolean includeTable = (StrUtil.isEmpty(tableNames) && actualDataNodes.size() > 1) || containsStr(tableNames, tableName);
+        boolean excludeTable = containsStr(excludeTables, tableName);
+        return includeTable && !excludeTable;
+    }
+
+    private boolean containsStr(String str, String subStr) {
+        return Arrays.stream(str.split(",")).anyMatch(item -> item.equalsIgnoreCase(subStr));
+    }
+
+    private boolean existsStoreNO(WhereSegment whereSegment) {
+        for (AndPredicate andPredicate : whereSegment.getAndPredicates()) {
+            for (PredicateSegment predicate : andPredicate.getPredicates()) {
+                if (containsStr(storeNoFieldName, predicate.getColumn().getIdentifier().getValue())) {
+                    if (predicate.getRightValue() instanceof PredicateCompareRightValue) {
+                        String operator = ((PredicateCompareRightValue) predicate.getRightValue()).getOperator();
+                        if ("=".equals(operator)) {
+                            return true;
                         }
                     }
-
                 }
             }
         }

@@ -32,6 +32,6 @@ public class StoreNoInterceptorConfiguration {
     @Bean
     @ConditionalOnMissingBean(StoreNoInterceptor.class)
     public StoreNoInterceptor storeNOInterceptor() {
-        return new StoreNoInterceptor(dataSource,properties.getFieldName(),properties.getExcludeTables());
+        return new StoreNoInterceptor(dataSource,properties.getFieldName(),properties.getExcludeTables(),properties.getTables());
     }
 }
