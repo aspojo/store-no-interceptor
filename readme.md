@@ -17,7 +17,7 @@
 <dependency>
     <groupId>top.logbug.sni</groupId>
     <artifactId>store-no-interceptor-starter</artifactId>
-    <version>1.0</version>
+    <version>1.1.1</version>
 </dependency>
 ```
 
