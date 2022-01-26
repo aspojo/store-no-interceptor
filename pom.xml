@@ -6,7 +6,7 @@
 
     <groupId>top.logbug.sni</groupId>
     <artifactId>store-no-interceptor-starter</artifactId>
-    <version>1.1</version>
+    <version>1.1.1</version>
 
     <name>store-no-interceptor</name>
     <description>store-no-interceptor-starter</description>
