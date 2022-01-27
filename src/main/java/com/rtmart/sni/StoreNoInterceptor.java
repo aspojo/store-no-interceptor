@@ -65,13 +65,15 @@ public class StoreNoInterceptor implements Interceptor {
 
     @Override
     public Object intercept(Invocation invocation) throws Throwable {
-
-        if (doInterceptor(invocation)) {
+        if (!doInterceptor(invocation)) {
             return -1;
         }
         return invocation.proceed();
     }
 
+    /**
+     * @return 是否通过验证
+     */
     private boolean doInterceptor(Invocation invocation) {
         try {
             Object target = invocation.getTarget();
