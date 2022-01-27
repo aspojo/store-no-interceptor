@@ -65,44 +65,57 @@ public class StoreNoInterceptor implements Interceptor {
 
     @Override
     public Object intercept(Invocation invocation) throws Throwable {
-        Object target = invocation.getTarget();
-        Object[] args = invocation.getArgs();
-        if (target instanceof Executor) {
-            Object parameter = args[1];
-            MappedStatement ms = (MappedStatement) args[0];
-            boolean isUpdate = args.length == 2;
-            if (isUpdate) {
-                String sql = ms.getBoundSql(parameter).getSql();
-                SQLStatement parse = dataSource.getRuntimeContext().getSqlParserEngine().parse(sql, true);
-                if (parse instanceof DMLStatement) {
-                    DMLStatement dmlStatement = (DMLStatement) parse;
-                    Collection<SimpleTableSegment> tables = null;
-                    Optional<WhereSegment> where = Optional.empty();
-                    if (dmlStatement instanceof UpdateStatement) {
-                        UpdateStatement statement = (UpdateStatement) dmlStatement;
-                        tables = statement.getTables();
-                        where = statement.getWhere();
-                    } else if (dmlStatement instanceof DeleteStatement) {
-                        DeleteStatement statement = (DeleteStatement) dmlStatement;
-                        tables = statement.getTables();
-                        where = statement.getWhere();
-                    }
-                    if (tables != null) {
-                        for (SimpleTableSegment table : tables) {
-                            String tableName = table.getTableName().getIdentifier().getValue();
-                            if (shouldDoInterceptor(tableName)) {
-                                if (!where.isPresent() || !existsStoreNO(where.get())) {
-                                    log.error("请修改sql，不允许不带店号({})的DML语句执行！！！ --> {}", storeNoFieldName, sql);
-                                    return -1;
+
+        if (doInterceptor(invocation)) {
+            return -1;
+        }
+        return invocation.proceed();
+    }
+
+    private boolean doInterceptor(Invocation invocation) {
+        try {
+            Object target = invocation.getTarget();
+            Object[] args = invocation.getArgs();
+            if (target instanceof Executor) {
+                Object parameter = args[1];
+                MappedStatement ms = (MappedStatement) args[0];
+                boolean isUpdate = args.length == 2;
+                if (isUpdate) {
+                    String sql = ms.getBoundSql(parameter).getSql();
+                    SQLStatement parse = dataSource.getRuntimeContext().getSqlParserEngine().parse(sql, true);
+                    if (parse instanceof DMLStatement) {
+                        DMLStatement dmlStatement = (DMLStatement) parse;
+                        Collection<SimpleTableSegment> tables = null;
+                        Optional<WhereSegment> where = Optional.empty();
+                        if (dmlStatement instanceof UpdateStatement) {
+                            UpdateStatement statement = (UpdateStatement) dmlStatement;
+                            tables = statement.getTables();
+                            where = statement.getWhere();
+                        } else if (dmlStatement instanceof DeleteStatement) {
+                            DeleteStatement statement = (DeleteStatement) dmlStatement;
+                            tables = statement.getTables();
+                            where = statement.getWhere();
+                        }
+                        if (tables != null) {
+                            for (SimpleTableSegment table : tables) {
+                                String tableName = table.getTableName().getIdentifier().getValue();
+                                if (shouldDoInterceptor(tableName)) {
+                                    if (!where.isPresent() || !existsStoreNO(where.get())) {
+                                        log.error("请修改sql，不允许不带店号({})的DML语句执行！！！ --> {}", storeNoFieldName, sql);
+                                        return false;
+                                    }
                                 }
                             }
                         }
                     }
                 }
             }
-
+        } catch (Exception e) {
+            // 如果校验代码出现了异常，什么多不做，保持原有逻辑, 保证不影响原有业务
+            log.error("store-no-interceptor 内部错误，麻烦反馈给开发人员。", e);
         }
-        return invocation.proceed();
+
+        return true;
     }
 
     private boolean shouldDoInterceptor(String tableName) {

@@ -1,6 +1,6 @@
 # store-no-interceptor
 
-    在使用sharding-jdbc 4，mybatis 3的项目中，拦截所有不带店号的DML语句（update，delete）。
+    在使用sharding-jdbc 4，mybatis 3的项目中，拦截所有不带店号的DML语句（目前包含：update,delete）。
     注意：务必配置排除表。
 
 ## 环境
@@ -17,7 +17,7 @@
 <dependency>
     <groupId>top.logbug.sni</groupId>
     <artifactId>store-no-interceptor-starter</artifactId>
-    <version>1.1.1</version>
+    <version>1.1.2</version>
 </dependency>
 ```
 
