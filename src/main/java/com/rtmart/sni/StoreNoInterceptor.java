@@ -65,16 +65,14 @@ public class StoreNoInterceptor implements Interceptor {
 
     @Override
     public Object intercept(Invocation invocation) throws Throwable {
-        if (!doInterceptor(invocation)) {
-            return -1;
-        }
+        doInterceptor(invocation);
         return invocation.proceed();
     }
 
     /**
      * @return 是否通过验证
      */
-    private boolean doInterceptor(Invocation invocation) {
+    private void doInterceptor(Invocation invocation) throws StoreNoInterceptorException {
         try {
             Object target = invocation.getTarget();
             Object[] args = invocation.getArgs();
@@ -103,8 +101,9 @@ public class StoreNoInterceptor implements Interceptor {
                                 String tableName = table.getTableName().getIdentifier().getValue();
                                 if (shouldDoInterceptor(tableName)) {
                                     if (!where.isPresent() || !existsStoreNO(where.get())) {
-                                        log.error("请修改sql，不允许不带店号({})的DML语句执行！！！ --> {}", storeNoFieldName, sql);
-                                        return false;
+                                        String errorMsg = String.format("请修改sql，不允许不带店号(%s)的DML语句执行！！！ --> %s", storeNoFieldName, sql);
+                                        log.error(errorMsg);
+                                        throw new StoreNoInterceptorException(errorMsg);
                                     }
                                 }
                             }
@@ -113,11 +112,12 @@ public class StoreNoInterceptor implements Interceptor {
                 }
             }
         } catch (Exception e) {
+            if (e instanceof StoreNoInterceptorException) {
+                throw e;
+            }
             // 如果校验代码出现了异常，什么多不做，保持原有逻辑, 保证不影响原有业务
             log.error("store-no-interceptor 内部错误，麻烦反馈给开发人员。", e);
         }
-
-        return true;
     }
 
     private boolean shouldDoInterceptor(String tableName) {
