@@ -29,5 +29,5 @@
 | enabled       | true     | 是否启用拦截器                                                                                                                       |
 | fieldName     | store_no | 店号字段。支持逗号分隔，兼容不同店号字段名称                                                                                                        |
 | excludeTables | t1,t2    | 被排除的表一定不拦截，以逗号分隔                                                                                                              |
-| tables        | t1,t2    | 以逗号分隔 <br> 如果tables为默认值(空字符串)，代表对所有表适用拦截规则(排除没有分片的逻辑表,同时排除excludeTables中的表)<br> 如不tables不为空，这拦截规则只在该范围上有效(排除excludeTables中的表) |
+| tables        | t1,t2    | 以逗号分隔 <br> 如果tables为默认值(空字符串)，代表对所有表适用拦截规则(排除没有分片的逻辑表,同时排除excludeTables中的表)<br> 如不tables不为空，则拦截规则只在该范围上有效(排除excludeTables中的表) |
 
